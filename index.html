@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>הבית שלנו - ניהול משימות</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f0f2f5; margin: 0; padding: 15px; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { color: #1a73e8; text-align: center; margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-top: 10px; margin-bottom: 5px; }
+        input, select, button { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
+        button { background-color: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
+        button:active { opacity: 0.7; }
+        
+        /* לוח בקרה */
+        .stats-container { background: #f8f9fa; padding: 15px; border-radius: 12px; margin: 20px 0; border: 1px solid #eee; }
+        .stat-row { margin-bottom: 10px; }
+        .stat-bar-bg { background: #e9ecef; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 5px; }
+        .stat-bar-fill { background: #34a853; height: 100%; width: 0%; transition: width 0.4s; }
+        
+        /* כרטיס משימה */
+        .task-card { background: white; border: 1px solid #eee; border-right: 6px solid #1a73e8; padding: 15px; margin-top: 12px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .task-card.completed { border-right-color: #34a853; background-color: #fcfcfc; }
+        .task-title { font-weight: bold; font-size: 1.1em; display: flex; justify-content: space-between; }
+        .task-meta { font-size: 0.9em; color: #666; margin: 8px 0; }
+        .btn-group { display: flex; gap: 8px; margin-top: 10px; }
+        .btn-group button { padding: 8px; font-size: 14px; margin-bottom: 0; }
+        .btn-wa { background-color: #25D366; }
+        .btn-del { background-color: #ea4335; }
+        .btn-done { background-color: #fbbc05; color: black; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>הבית שלנו 🏠</h2>
+    
+    <label>מה המשימה?</label>
+    <input type="text" id="taskName" placeholder="למשל: לשטוף כלים">
+
+    <label>מי האחראי?</label>
+    <select id="responsible">
+        <option value="אמא">אמא</option>
+        <option value="אבא">אבא</option>
+        <option value="איתמר">איתמר</option>
+        <option value="הראל">הראל</option>
+        <option value="יאיר">יאיר</option>
+    </select>
+
+    <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+            <label>תאריך</label>
+            <input type="date" id="dueDate">
+        </div>
+        <div style="flex: 1;">
+            <label>שעה</label>
+            <input type="time" id="dueTime" value="19:00">
+        </div>
+    </div>
+
+    <button onclick="addTask()" style="margin-top: 15px; background-color: #1a73e8; height: 55px;">הוסף משימה לרשימה</button>
+
+    <div class="stats-container" id="statsArea">
+        <h3 style="margin-top: 0; font-size: 1.1em; text-align: center;">מצב ביצוע משפחתי 📊</h3>
+        <div id="statsContent"></div>
+    </div>
+
+    <div id="taskList"></div>
+</div>
+
+<script>
+    let tasks = [];
+
+    // פונקציית טעינה ראשונית
+    function init() {
+        try {
+            const saved = localStorage.getItem('familyTasks_v3');
+            if (saved) {
+                tasks = JSON.parse(saved);
+            }
+            // הגדרת תאריך היום כברירת מחדל בשדה התאריך
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dueDate').value = today;
+            updateUI();
+        } catch (e) {
+            console.error("שגיאה בטעינה", e);
+        }
+    }
+
+    function addTask() {
+        const nameInput = document.getElementById('taskName');
+        const personInput = document.getElementById('responsible');
+        const dateInput = document.getElementById('dueDate');
+        const timeInput = document.getElementById('dueTime');
+
+        if (!nameInput.value || !dateInput.value) {
+            alert("חובה למלא שם משימה ותאריך");
+            return;
+        }
+
+        const newTask = {
+            id: Date.now(),
+            name: nameInput.value,
+            person: personInput.value,
+            date: dateInput.value,
+            time: timeInput.value,
+            completed: false
+        };
+
+        tasks.push(newTask);
+        saveAndRefresh();
+        
+        // איפוס שם המשימה בלבד
+        nameInput.value = '';
+    }
+
+    function saveAndRefresh() {
+        // מיון
+        tasks.sort((a, b) => {
+            return new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time);
+        });
+        localStorage.setItem('familyTasks_v3', JSON.stringify(tasks));
+        updateUI();
+    }
+
+    function updateUI() {
+        renderTasks();
+        renderStats();
+    }
+
+    function renderTasks() {
+        const list = document.getElementById('taskList');
+        list.innerHTML = '';
+
+        if (tasks.length === 0) {
+            list.innerHTML = '<p style="text-align:center; color:#999;">אין משימות כרגע. הגיע הזמן לנוח! ☕</p>';
+            return;
+        }
+
+        tasks.forEach(t => {
+            const card = document.createElement('div');
+            card.className = `task-card ${t.completed ? 'completed' : ''}`;
+            
+            const displayDate = t.date.split('-').reverse().join('.');
+            
+            card.innerHTML = `
+                <div class="task-title">
+                    <span>${t.name}</span>
+                    <span style="color:#1a73e8">${t.person}</span>
+                </div>
+                <div class="task-meta">
+                    📅 ${displayDate} | 🕒 ${t.time}
+                </div>
+                <div class="btn-group">
+                    <button class="btn-done" onclick="toggleDone(${t.id})">${t.completed ? '↩️' : '✅ בוצע'}</button>
+                    <button class="btn-wa" onclick="sendWA('${t.person}', '${t.name}')">📱</button>
+                    <button class="btn-del" onclick="deleteTask(${t.id})">🗑️</button>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    function renderStats() {
+        const statsDiv = document.getElementById('statsContent');
+        const people = ["אמא", "אבא", "איתמר", "הראל", "יאיר"];
+        statsDiv.innerHTML = '';
+
+        people.forEach(p => {
+            const pTasks = tasks.filter(t => t.person === p);
+            const done = pTasks.filter(t => t.completed).length;
+            const total = pTasks.length;
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            if (total > 0) {
+                statsDiv.innerHTML += `
+                    <div class="stat-row">
+                        <div style="display:flex; justify-content:space-between; font-size:13px;">
+                            <span>${p}</span>
+                            <span>${done}/${total} (${pct}%)</span>
+                        </div>
+                        <div class="stat-bar-bg">
+                            <div class="stat-bar-fill" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        if (tasks.length === 0) {
+            statsDiv.innerHTML = '<p style="text-align:center; font-size:12px;">הוסף משימה כדי לראות סטטיסטיקה</p>';
+        }
+    }
+
+    function toggleDone(id) {
+        const t = tasks.find(x => x.id === id);
+        if (t) t.completed = !t.completed;
+        saveAndRefresh();
+    }
+
+    function deleteTask(id) {
+        if (confirm("למחוק את המשימה?")) {
+            tasks = tasks.filter(x => x.id !== id);
+            saveAndRefresh();
+        }
+    }
+
+    function sendWA(name, task) {
+        const msg = encodeURIComponent(`היי ${name}, תזכורת למשימה: ${task} 🏠`);
+        window.open(`https://wa.me/?text=${msg}`, '_blank');
+    }
+
+    // הפעלה ברגע שהדף נטען
+    window.onload = init;
+</script>
+
+</body>
+</html>
