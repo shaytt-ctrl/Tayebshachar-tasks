@@ -40,23 +40,21 @@
 <div class="container">
     <h2>הבית שלנו 🏠</h2>
     
-    <div id="adminArea">
-        <input type="text" id="taskName" placeholder="מה המשימה?">
-        <select id="responsible">
-            <option value="אמא">אמא</option>
-            <option value="אבא">אבא</option>
-            <option value="איתמר">איתמר</option>
-            <option value="הראל">הראל</option>
-            <option value="יאיר">יאיר</option>
-        </select>
+    <input type="text" id="taskName" placeholder="מה המשימה?">
+    <select id="responsible">
+        <option value="אמא">אמא</option>
+        <option value="אבא">אבא</option>
+        <option value="איתמר">איתמר</option>
+        <option value="הראל">הראל</option>
+        <option value="יאיר">יאיר</option>
+    </select>
 
-        <div style="display: flex; gap: 10px;">
-            <div style="flex: 1;"><input type="date" id="dueDate"></div>
-            <div style="flex: 1;"><input type="time" id="dueTime" value="19:00"></div>
-        </div>
-
-        <button onclick="addTask()" style="height: 55px; font-size: 18px;">הוסף משימה (נדרש קוד) 🚀</button>
+    <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;"><input type="date" id="dueDate"></div>
+        <div style="flex: 1;"><input type="time" id="dueTime" value="19:00"></div>
     </div>
+
+    <button onclick="addTask()" style="height: 55px; font-size: 18px;">הוסף משימה לכולם 🚀</button>
 
     <div class="stats-container">
         <div id="statsContent"></div>
@@ -94,8 +92,8 @@
     let allTasks = [];
     const people = ["אמא", "אבא", "איתמר", "הראל", "יאיר"];
     
-    // --- הגדרות אבטחה וטלפונים ---
-    const adminCode = "1234"; // שנה כאן את הקוד למה שתרצה!
+    // הגדרות אבטחה וטלפונים
+    const adminCode = "5675"; 
 
     const phoneBook = { 
         "אמא": "972544326019", 
@@ -105,22 +103,13 @@
         "יאיר": "972556652639" 
     };
 
-    // פונקציית אימות קוד
-    function checkAdmin() {
-        const pass = prompt("הכנס קוד הורה לביצוע הפעולה:");
-        if (pass === adminCode) return true;
-        alert("קוד שגוי! רק אמא ואבא יכולים.");
-        return false;
-    }
-
     window.addTask = function() {
-        if (!checkAdmin()) return; // עצור אם הקוד שגוי
-
         const name = document.getElementById('taskName').value;
         const person = document.getElementById('responsible').value;
         const date = document.getElementById('dueDate').value;
         const time = document.getElementById('dueTime').value;
         if (!name || !date) { alert("מלא שם ותאריך!"); return; }
+        
         push(tasksRef, { name, person, date, time, completed: false, timestamp: Date.now() });
         document.getElementById('taskName').value = '';
     };
@@ -182,13 +171,18 @@
     }
 
     window.toggleDone = (id, currentStatus) => { 
-        // סימון כבוצע פתוח לכולם!
         update(ref(db, `tasks/${id}`), { completed: !currentStatus }); 
     };
 
     window.deleteTask = (id) => { 
-        if (!checkAdmin()) return; // דורש קוד למחיקה
-        if(confirm("למחוק את המשימה?")) remove(ref(db, `tasks/${id}`)); 
+        const pass = prompt("הכנס קוד למחיקת משימה:");
+        if (pass === adminCode) {
+            if(confirm("למחוק את המשימה לתמיד?")) {
+                remove(ref(db, `tasks/${id}`));
+            }
+        } else {
+            alert("קוד שגוי! רק מי שיודע את הקוד יכול למחוק.");
+        }
     };
     
     window.sendWA = (name, task, date) => {
