@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>הבית שלנו - משפחת טייב - ניהול משותף</title>
+    <title>הבית שלנו - ניהול משותף</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f0f2f5; margin: 0; padding: 15px; }
         .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
@@ -40,21 +40,23 @@
 <div class="container">
     <h2>הבית שלנו 🏠</h2>
     
-    <input type="text" id="taskName" placeholder="מה המשימה?">
-    <select id="responsible">
-        <option value="אמא">אמא</option>
-        <option value="אבא">אבא</option>
-        <option value="איתמר">איתמר</option>
-        <option value="הראל">הראל</option>
-        <option value="יאיר">יאיר</option>
-    </select>
+    <div id="adminArea">
+        <input type="text" id="taskName" placeholder="מה המשימה?">
+        <select id="responsible">
+            <option value="אמא">אמא</option>
+            <option value="אבא">אבא</option>
+            <option value="איתמר">איתמר</option>
+            <option value="הראל">הראל</option>
+            <option value="יאיר">יאיר</option>
+        </select>
 
-    <div style="display: flex; gap: 10px;">
-        <div style="flex: 1;"><input type="date" id="dueDate"></div>
-        <div style="flex: 1;"><input type="time" id="dueTime" value="19:00"></div>
+        <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;"><input type="date" id="dueDate"></div>
+            <div style="flex: 1;"><input type="time" id="dueTime" value="19:00"></div>
+        </div>
+
+        <button onclick="addTask()" style="height: 55px; font-size: 18px;">הוסף משימה (נדרש קוד) 🚀</button>
     </div>
-
-    <button onclick="addTask()" style="height: 55px; font-size: 18px;">הוסף משימה 🚀</button>
 
     <div class="stats-container">
         <div id="statsContent"></div>
@@ -91,9 +93,29 @@
     let currentFilter = 'all';
     let allTasks = [];
     const people = ["אמא", "אבא", "איתמר", "הראל", "יאיר"];
-    const phoneBook = { "אמא": "", "אבא": "", "איתמר": "", "הראל": "", "יאיר": "" };
+    
+    // --- הגדרות אבטחה וטלפונים ---
+    const adminCode = "1234"; // שנה כאן את הקוד למה שתרצה!
+
+    const phoneBook = { 
+        "אמא": "972544326019", 
+        "אבא": "972529279919", 
+        "איתמר": "972555591922", 
+        "הראל": "972555591847", 
+        "יאיר": "972556652639" 
+    };
+
+    // פונקציית אימות קוד
+    function checkAdmin() {
+        const pass = prompt("הכנס קוד הורה לביצוע הפעולה:");
+        if (pass === adminCode) return true;
+        alert("קוד שגוי! רק אמא ואבא יכולים.");
+        return false;
+    }
 
     window.addTask = function() {
+        if (!checkAdmin()) return; // עצור אם הקוד שגוי
+
         const name = document.getElementById('taskName').value;
         const person = document.getElementById('responsible').value;
         const date = document.getElementById('dueDate').value;
@@ -118,7 +140,6 @@
         renderUI();
     };
 
-    // פונקציית עזר ליצירת כרטיס משימה
     function createTaskHTML(t) {
         const isOverdue = !t.completed && new Date(t.date + 'T' + t.time) < new Date();
         return `
@@ -141,7 +162,6 @@
     function renderUI() {
         const listDiv = document.getElementById('taskList');
         listDiv.innerHTML = '';
-        
         if (currentFilter === 'byPerson') {
             people.forEach(p => {
                 const pTasks = allTasks.filter(t => t.person === p);
@@ -161,11 +181,21 @@
         renderStats(allTasks);
     }
 
-    window.toggleDone = (id, currentStatus) => { update(ref(db, `tasks/${id}`), { completed: !currentStatus }); };
-    window.deleteTask = (id) => { if(confirm("למחוק?")) remove(ref(db, `tasks/${id}`)); };
+    window.toggleDone = (id, currentStatus) => { 
+        // סימון כבוצע פתוח לכולם!
+        update(ref(db, `tasks/${id}`), { completed: !currentStatus }); 
+    };
+
+    window.deleteTask = (id) => { 
+        if (!checkAdmin()) return; // דורש קוד למחיקה
+        if(confirm("למחוק את המשימה?")) remove(ref(db, `tasks/${id}`)); 
+    };
+    
     window.sendWA = (name, task, date) => {
-        const text = `היי ${name}, תזכורת למשימה: *${task}* לתאריך ${date.split('-').reverse().join('.')}`;
-        window.open(`https://wa.me/${phoneBook[name] || ''}?text=${encodeURIComponent(text)}`, '_blank');
+        const phone = phoneBook[name] || "";
+        const formattedDate = date.split('-').reverse().join('.');
+        const text = `היי ${name}, תזכורת למשימה: *${task}* לביצוע עד ${formattedDate}. בהצלחה!`;
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
     };
 
     function renderStats(tasks) {
