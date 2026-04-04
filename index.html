@@ -10,15 +10,26 @@
         h2 { color: #1a73e8; text-align: center; margin-bottom: 20px; }
         label { display: block; font-weight: bold; margin-top: 10px; margin-bottom: 5px; }
         input, select, button { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
-        button { background-color: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button { background-color: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:active { transform: scale(0.98); }
+        
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
+        .tab-btn { background: #e9ecef; color: #555; padding: 8px; font-size: 13px; flex: 1; min-width: 80px; }
+        .tab-btn.active { background: #1a73e8; color: white; }
+
         .stats-container { background: #f8f9fa; padding: 15px; border-radius: 12px; margin: 20px 0; border: 1px solid #eee; }
         .stat-row { margin-bottom: 10px; }
         .stat-bar-bg { background: #e9ecef; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 5px; }
         .stat-bar-fill { background: #34a853; height: 100%; width: 0%; transition: width 0.4s; }
-        .task-card { background: white; border: 1px solid #eee; border-right: 6px solid #1a73e8; padding: 15px; margin-top: 12px; border-radius: 10px; }
-        .task-card.completed { border-right-color: #34a853; opacity: 0.8; }
+        
+        .task-card { background: white; border: 1px solid #eee; border-right: 6px solid #1a73e8; padding: 15px; margin-top: 10px; border-radius: 10px; }
+        .task-card.completed { border-right-color: #34a853; opacity: 0.6; background: #fcfcfc; }
+        .task-card.overdue { border-right-color: #ea4335; }
+        
+        .group-header { background: #e8f0fe; padding: 8px 15px; border-radius: 8px; margin-top: 20px; font-weight: bold; color: #1967d2; border: 1px solid #d2e3fc; }
+
         .btn-group { display: flex; gap: 8px; margin-top: 10px; }
-        .btn-group button { padding: 8px; font-size: 14px; margin-bottom: 0; }
+        .btn-group button { padding: 8px; font-size: 14px; margin-bottom: 0; flex: 1; }
         .btn-wa { background-color: #25D366; }
         .btn-del { background-color: #ea4335; }
         .btn-done { background-color: #fbbc05; color: black; }
@@ -27,12 +38,9 @@
 <body>
 
 <div class="container">
-    <h2>הבית שלנו 🏠 (משותף)</h2>
+    <h2>הבית שלנו 🏠</h2>
     
-    <label>מה המשימה?</label>
-    <input type="text" id="taskName" placeholder="למשל: לקנות חלב">
-
-    <label>מי האחראי?</label>
+    <input type="text" id="taskName" placeholder="מה המשימה?">
     <select id="responsible">
         <option value="אמא">אמא</option>
         <option value="אבא">אבא</option>
@@ -42,15 +50,21 @@
     </select>
 
     <div style="display: flex; gap: 10px;">
-        <div style="flex: 1;"><label>תאריך</label><input type="date" id="dueDate"></div>
-        <div style="flex: 1;"><label>שעה</label><input type="time" id="dueTime" value="19:00"></div>
+        <div style="flex: 1;"><input type="date" id="dueDate"></div>
+        <div style="flex: 1;"><input type="time" id="dueTime" value="19:00"></div>
     </div>
 
-    <button onclick="addTask()" style="margin-top: 15px; height: 55px;">הוסף משימה לכולם 🚀</button>
+    <button onclick="addTask()" style="height: 55px; font-size: 18px;">הוסף משימה 🚀</button>
 
-    <div class="stats-container" id="statsArea">
-        <h3 style="margin-top: 0; font-size: 1.1em; text-align: center;">מצב ביצוע משפחתי 📊</h3>
+    <div class="stats-container">
         <div id="statsContent"></div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" id="filter-all" onclick="setFilter('all')">הכל</button>
+        <button class="tab-btn" id="filter-pending" onclick="setFilter('pending')">לביצוע</button>
+        <button class="tab-btn" id="filter-done" onclick="setFilter('done')">בוצע</button>
+        <button class="tab-btn" id="filter-byPerson" onclick="setFilter('byPerson')">לפי אחראי👤</button>
     </div>
 
     <div id="taskList"></div>
@@ -74,75 +88,89 @@
     const db = getDatabase(app);
     const tasksRef = ref(db, 'tasks');
 
-    // פונקציית הוספה
+    let currentFilter = 'all';
+    let allTasks = [];
+    const people = ["אמא", "אבא", "איתמר", "הראל", "יאיר"];
+    const phoneBook = { "אמא": "", "אבא": "", "איתמר": "", "הראל": "", "יאיר": "" };
+
     window.addTask = function() {
         const name = document.getElementById('taskName').value;
         const person = document.getElementById('responsible').value;
         const date = document.getElementById('dueDate').value;
         const time = document.getElementById('dueTime').value;
-
         if (!name || !date) { alert("מלא שם ותאריך!"); return; }
-
-        push(tasksRef, {
-            name, person, date, time, completed: false, timestamp: Date.now()
-        });
+        push(tasksRef, { name, person, date, time, completed: false, timestamp: Date.now() });
         document.getElementById('taskName').value = '';
     };
 
-    // האזנה לשינויים בזמן אמת
     onValue(tasksRef, (snapshot) => {
         const data = snapshot.val();
-        const taskList = [];
-        for (let id in data) {
-            taskList.push({ id, ...data[id] });
-        }
-        // מיון
-        taskList.sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
-        renderUI(taskList);
+        allTasks = [];
+        for (let id in data) { allTasks.push({ id, ...data[id] }); }
+        allTasks.sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+        renderUI();
     });
 
-    function renderUI(tasks) {
-        const listDiv = document.getElementById('taskList');
-        listDiv.innerHTML = '';
-        
-        tasks.forEach(t => {
-            const card = document.createElement('div');
-            card.className = `task-card ${t.completed ? 'completed' : ''}`;
-            card.innerHTML = `
+    window.setFilter = (filter) => {
+        currentFilter = filter;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`filter-${filter}`).classList.add('active');
+        renderUI();
+    };
+
+    // פונקציית עזר ליצירת כרטיס משימה
+    function createTaskHTML(t) {
+        const isOverdue = !t.completed && new Date(t.date + 'T' + t.time) < new Date();
+        return `
+            <div class="task-card ${t.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''}">
                 <div style="display:flex; justify-content:space-between; font-weight:bold;">
-                    <span>${t.name}</span>
+                    <span>${t.name} ${isOverdue ? '⏰' : ''}</span>
                     <span style="color:#1a73e8">${t.person}</span>
                 </div>
-                <div style="font-size:0.9em; color:#666; margin:5px 0;">
+                <div style="font-size:0.85em; color:#666; margin:5px 0;">
                     📅 ${t.date.split('-').reverse().join('.')} | 🕒 ${t.time}
                 </div>
                 <div class="btn-group">
                     <button class="btn-done" onclick="toggleDone('${t.id}', ${t.completed})">${t.completed ? '↩️' : '✅'}</button>
-                    <button class="btn-wa" onclick="sendWA('${t.person}', '${t.name}')">📱</button>
+                    <button class="btn-wa" onclick="sendWA('${t.person}', '${t.name}', '${t.date}')">📱</button>
                     <button class="btn-del" onclick="deleteTask('${t.id}')">🗑️</button>
                 </div>
-            `;
-            listDiv.appendChild(card);
-        });
-        renderStats(tasks);
+            </div>`;
     }
 
-    window.toggleDone = (id, currentStatus) => {
-        update(ref(db, `tasks/${id}`), { completed: !currentStatus });
-    };
+    function renderUI() {
+        const listDiv = document.getElementById('taskList');
+        listDiv.innerHTML = '';
+        
+        if (currentFilter === 'byPerson') {
+            people.forEach(p => {
+                const pTasks = allTasks.filter(t => t.person === p);
+                if (pTasks.length > 0) {
+                    listDiv.innerHTML += `<div class="group-header">משימות של ${p}</div>`;
+                    pTasks.forEach(t => listDiv.innerHTML += createTaskHTML(t));
+                }
+            });
+        } else {
+            const filtered = allTasks.filter(t => {
+                if (currentFilter === 'pending') return !t.completed;
+                if (currentFilter === 'done') return t.completed;
+                return true;
+            });
+            filtered.forEach(t => listDiv.innerHTML += createTaskHTML(t));
+        }
+        renderStats(allTasks);
+    }
 
-    window.deleteTask = (id) => {
-        if(confirm("למחוק?")) remove(ref(db, `tasks/${id}`));
-    };
-
-    window.sendWA = (name, task) => {
-        window.open(`https://wa.me/?text=${encodeURIComponent('תזכורת: ' + task)}`, '_blank');
+    window.toggleDone = (id, currentStatus) => { update(ref(db, `tasks/${id}`), { completed: !currentStatus }); };
+    window.deleteTask = (id) => { if(confirm("למחוק?")) remove(ref(db, `tasks/${id}`)); };
+    window.sendWA = (name, task, date) => {
+        const text = `היי ${name}, תזכורת למשימה: *${task}* לתאריך ${date.split('-').reverse().join('.')}`;
+        window.open(`https://wa.me/${phoneBook[name] || ''}?text=${encodeURIComponent(text)}`, '_blank');
     };
 
     function renderStats(tasks) {
         const statsDiv = document.getElementById('statsContent');
-        const people = ["אמא", "אבא", "איתמר", "הראל", "יאיר"];
-        statsDiv.innerHTML = '';
+        statsDiv.innerHTML = '<h3 style="margin:0 0 10px 0; font-size:1em; text-align:center;">התקדמות משפחתית 📊</h3>';
         people.forEach(p => {
             const pTasks = tasks.filter(t => t.person === p);
             const done = pTasks.filter(t => t.completed).length;
