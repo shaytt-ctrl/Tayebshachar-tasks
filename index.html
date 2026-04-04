@@ -1,140 +1,219 @@
-        :root {
-            --primary: #4f46e5;
-            --secondary: #ec4899;
-            --success: #10b981;
-            --danger: #ef4444;
-            --bg: #f8fafc;
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>הבית שלנו - ניהול משותף</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f0f2f5; margin: 0; padding: 15px; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { color: #1a73e8; text-align: center; margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-top: 10px; margin-bottom: 5px; }
+        input, select, button { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; margin-bottom: 10px; }
+        button { background-color: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:active { transform: scale(0.98); }
+        
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
+        .tab-btn { background: #e9ecef; color: #555; padding: 8px; font-size: 13px; flex: 1; min-width: 80px; }
+        .tab-btn.active { background: #1a73e8; color: white; }
+
+        .stats-container { background: #f8f9fa; padding: 15px; border-radius: 12px; margin: 20px 0; border: 1px solid #eee; }
+        .stat-row { margin-bottom: 10px; }
+        .stat-bar-bg { background: #e9ecef; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 5px; }
+        .stat-bar-fill { background: #34a853; height: 100%; width: 0%; transition: width 0.4s; }
+        
+        .task-card { background: white; border: 1px solid #eee; border-right: 6px solid #1a73e8; padding: 15px; margin-top: 10px; border-radius: 10px; }
+        .task-card.completed { border-right-color: #34a853; opacity: 0.6; background: #fcfcfc; }
+        .task-card.overdue { border-right-color: #ea4335; }
+        
+        .group-header { background: #e8f0fe; padding: 8px 15px; border-radius: 8px; margin-top: 20px; font-weight: bold; color: #1967d2; border: 1px solid #d2e3fc; }
+
+        .btn-group { display: flex; gap: 8px; margin-top: 10px; }
+        .btn-group button { padding: 8px; font-size: 14px; margin-bottom: 0; flex: 1; }
+        .btn-wa { background-color: #25D366; }
+        .btn-del { background-color: #ea4335; }
+        .btn-done { background-color: #fbbc05; color: black; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>הבית שלנו 🏠</h2>
+    
+    <input type="text" id="taskName" placeholder="מה המשימה?">
+    <select id="responsible">
+        <option value="אמא">אמא</option>
+        <option value="אבא">אבא</option>
+        <option value="איתמר">איתמר</option>
+        <option value="הראל">הראל</option>
+        <option value="יאיר">יאיר</option>
+    </select>
+
+    <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;"><input type="date" id="dueDate"></div>
+        <div style="flex: 1;"><input type="time" id="dueTime" value="19:00"></div>
+    </div>
+
+    <button onclick="addTask()" style="height: 55px; font-size: 18px;">הוסף משימה לכולם 🚀</button>
+
+    <div class="stats-container">
+        <div id="statsContent"></div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" id="filter-all" onclick="setFilter('all')">הכל</button>
+        <button class="tab-btn" id="filter-pending" onclick="setFilter('pending')">לביצוע</button>
+        <button class="tab-btn" id="filter-done" onclick="setFilter('done')">בוצע</button>
+        <button class="tab-btn" id="filter-byPerson" onclick="setFilter('byPerson')">לפי אחראי👤</button>
+    </div>
+
+    <div id="taskList"></div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyC6BYaoo4qxYqnOLKOeJj5P9uOVARbyoSg",
+        authDomain: "tayebshachar-tasks.firebaseapp.com",
+        projectId: "tayebshachar-tasks",
+        databaseURL: "https://tayebshachar-tasks-default-rtdb.firebaseio.com",
+        storageBucket: "tayebshachar-tasks.firebasestorage.app",
+        messagingSenderId: "299589944778",
+        appId: "1:299589944778:web:4cde9ff47e16647377fb33"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const tasksRef = ref(db, 'tasks');
+
+    let currentFilter = 'all';
+    let allTasks = [];
+    const people = ["אמא", "אבא", "איתמר", "הראל", "יאיר"];
+    
+    // הגדרות אבטחה וטלפונים
+    const adminCode = "5675"; 
+
+    const phoneBook = { 
+        "אמא": "972544326019", 
+        "אבא": "972529279919", 
+        "איתמר": "972555591922", 
+        "הראל": "972555591847", 
+        "יאיר": "972556652639" 
+    };
+
+    window.addTask = function() {
+        const name = document.getElementById('taskName').value;
+        const person = document.getElementById('responsible').value;
+        const date = document.getElementById('dueDate').value;
+        const time = document.getElementById('dueTime').value;
+        if (!name || !date) { alert("מלא שם ותאריך!"); return; }
+        
+        push(tasksRef, { name, person, date, time, completed: false, timestamp: Date.now() });
+        document.getElementById('taskName').value = '';
+    };
+
+    onValue(tasksRef, (snapshot) => {
+        const data = snapshot.val();
+        allTasks = [];
+        for (let id in data) { allTasks.push({ id, ...data[id] }); }
+        allTasks.sort((a, b) => new Date(a.date + 'T' + a.time) - new Date(b.date + 'T' + b.time));
+        renderUI();
+    });
+
+    window.setFilter = (filter) => {
+        currentFilter = filter;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`filter-${filter}`).classList.add('active');
+        renderUI();
+    };
+
+    function createTaskHTML(t) {
+        const isOverdue = !t.completed && new Date(t.date + 'T' + t.time) < new Date();
+        return `
+            <div class="task-card ${t.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''}">
+                <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                    <span>${t.name} ${isOverdue ? '⏰' : ''}</span>
+                    <span style="color:#1a73e8">${t.person}</span>
+                </div>
+                <div style="font-size:0.85em; color:#666; margin:5px 0;">
+                    📅 ${t.date.split('-').reverse().join('.')} | 🕒 ${t.time}
+                </div>
+                <div class="btn-group">
+                    <button class="btn-done" onclick="toggleDone('${t.id}', ${t.completed})">${t.completed ? '↩️' : '✅'}</button>
+                    <button class="btn-wa" onclick="sendWA('${t.person}', '${t.name}', '${t.date}')">📱</button>
+                    <button class="btn-del" onclick="deleteTask('${t.id}')">🗑️</button>
+                </div>
+            </div>`;
+    }
+
+    function renderUI() {
+        const listDiv = document.getElementById('taskList');
+        listDiv.innerHTML = '';
+        if (currentFilter === 'byPerson') {
+            people.forEach(p => {
+                const pTasks = allTasks.filter(t => t.person === p);
+                if (pTasks.length > 0) {
+                    listDiv.innerHTML += `<div class="group-header">משימות של ${p}</div>`;
+                    pTasks.forEach(t => listDiv.innerHTML += createTaskHTML(t));
+                }
+            });
+        } else {
+            const filtered = allTasks.filter(t => {
+                if (currentFilter === 'pending') return !t.completed;
+                if (currentFilter === 'done') return t.completed;
+                return true;
+            });
+            filtered.forEach(t => listDiv.innerHTML += createTaskHTML(t));
         }
+        renderStats(allTasks);
+    }
 
-        body { 
-            font-family: -apple-system, system-ui, sans-serif; 
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-            margin: 0; 
-            padding: 20px; 
-            display: flex;
-            justify-content: center;
+    window.toggleDone = (id, currentStatus) => { 
+        update(ref(db, `tasks/${id}`), { completed: !currentStatus }); 
+    };
+
+    window.deleteTask = (id) => { 
+        const pass = prompt("הכנס קוד למחיקת משימה:");
+        if (pass === adminCode) {
+            if(confirm("למחוק את המשימה לתמיד?")) {
+                remove(ref(db, `tasks/${id}`));
+            }
+        } else {
+            alert("קוד שגוי! רק מי שיודע את הקוד יכול למחוק.");
         }
+    };
+    
+    window.sendWA = (name, task, date) => {
+        const phone = phoneBook[name] || "";
+        const formattedDate = date.split('-').reverse().join('.');
+        const text = `היי ${name}, תזכורת למשימה: *${task}* לביצוע עד ${formattedDate}. בהצלחה!`;
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    };
 
-        .container { 
-            width: 100%;
-            max-width: 480px; 
-            background: rgba(255, 255, 255, 0.95); 
-            padding: 25px; 
-            border-radius: 24px; 
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
-            backdrop-filter: blur(10px);
-        }
+    function renderStats(tasks) {
+        const statsDiv = document.getElementById('statsContent');
+        statsDiv.innerHTML = '<h3 style="margin:0 0 10px 0; font-size:1em; text-align:center;">התקדמות משפחתית 📊</h3>';
+        people.forEach(p => {
+            const pTasks = tasks.filter(t => t.person === p);
+            const done = pTasks.filter(t => t.completed).length;
+            const total = pTasks.length;
+            if (total > 0) {
+                const pct = Math.round((done / total) * 100);
+                statsDiv.innerHTML += `
+                    <div class="stat-row">
+                        <div style="display:flex; justify-content:space-between; font-size:12px;">
+                            <span>${p}</span><span>${done}/${total} (${pct}%)</span>
+                        </div>
+                        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${pct}%"></div></div>
+                    </div>`;
+            }
+        });
+    }
 
-        h2 { 
-            color: #1e293b; 
-            font-size: 28px;
-            font-weight: 800;
-            text-align: center; 
-            margin-bottom: 25px; 
-            letter-spacing: -0.5px;
-        }
+    document.getElementById('dueDate').value = new Date().toISOString().split('T')[0];
+</script>
 
-        input, select { 
-            width: 100%; 
-            padding: 14px; 
-            border: 2px solid #e2e8f0; 
-            border-radius: 12px; 
-            font-size: 16px; 
-            transition: all 0.3s;
-            margin-bottom: 12px;
-            background: #fff;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
-        }
-
-        button { 
-            border-radius: 12px; 
-            font-weight: 700; 
-            cursor: pointer; 
-            transition: all 0.2s; 
-            border: none;
-        }
-
-        .btn-add {
-            background: var(--primary);
-            color: white;
-            height: 55px;
-            font-size: 18px;
-            width: 100%;
-            margin-top: 10px;
-            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);
-        }
-
-        .btn-add:hover { background: #4338ca; transform: translateY(-1px); }
-
-        .tabs { 
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px; 
-            margin: 20px 0; 
-        }
-
-        .tab-btn { 
-            background: #f1f5f9; 
-            color: #64748b; 
-            padding: 10px; 
-            font-size: 14px; 
-            border: 1px solid #e2e8f0;
-        }
-
-        .tab-btn.active { 
-            background: var(--primary); 
-            color: white; 
-            border-color: var(--primary);
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        }
-
-        .stats-container { 
-            background: #ffffff; 
-            padding: 18px; 
-            border-radius: 16px; 
-            margin: 20px 0; 
-            border: 1px solid #f1f5f9;
-            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
-        }
-
-        .task-card { 
-            background: white; 
-            border-radius: 16px;
-            padding: 16px; 
-            margin-top: 15px; 
-            border: 1px solid #f1f5f9;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            transition: transform 0.2s;
-        }
-
-        .task-card:hover { transform: scale(1.01); }
-
-        .task-card.completed { background: #f8fafc; border-right: 6px solid var(--success); opacity: 0.8; }
-        .task-card.overdue { border-right: 6px solid var(--danger); background: #fff1f2; }
-        .task-card:not(.completed):not(.overdue) { border-right: 6px solid var(--primary); }
-
-        .group-header { 
-            background: #f1f5f9; 
-            padding: 10px 15px; 
-            border-radius: 10px; 
-            margin-top: 25px; 
-            font-weight: 800; 
-            color: #475569;
-            font-size: 0.9em;
-            text-transform: uppercase;
-        }
-
-        .btn-group { display: flex; gap: 8px; margin-top: 15px; }
-        .btn-group button { flex: 1; padding: 10px; font-size: 16px; }
-        .btn-wa { background-color: #dcfce7; color: #166534; }
-        .btn-del { background-color: #fee2e2; color: #991b1b; }
-        .btn-done { background-color: #fef9c3; color: #854d0e; }
-
-        .stat-bar-bg { background: #f1f5f9; height: 10px; border-radius: 5px; margin-top: 6px; }
-        .stat-bar-fill { background: linear-gradient(90deg, var(--primary), var(--secondary)); border-radius: 5px; }
+</body>
+</html>
