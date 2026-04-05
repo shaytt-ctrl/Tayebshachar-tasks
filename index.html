@@ -45,15 +45,35 @@ h2 {
 }
 
 /* שדות קלט בסגנון נקי */
+/* הכלל הזה חשוב מאוד - הוא שומר על הכל בתוך המסגרת */
+* {
+    box-sizing: border-box;
+}
+
 input, select { 
     width: 100%; 
-    padding: 16px; 
+    padding: 12px; 
     border: 1px solid #e2e8f0; 
     border-radius: 16px; 
     font-size: 16px; 
     margin-bottom: 12px;
     background: #ffffff;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* הוספתי הגדרה חדשה לשורה של התאריך והשעה */
+.date-time-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.date-time-container > div {
+    flex: 1;
+}
+
+.date-time-container input {
+    margin-bottom: 0;
 }
 
 /* כפתור הוספה דומיננטי */
@@ -159,7 +179,8 @@ input, select {
         <option value="יאיר">יאיר</option>
     </select>
 
-    <div style="display: flex; gap: 10px;">
+<div class="date-time-container">
+
         <div style="flex: 1;"><input type="date" id="dueDate"></div>
         <div style="flex: 1;"><input type="time" id="dueTime" value="19:00"></div>
     </div>
